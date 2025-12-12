@@ -111,45 +111,6 @@ export const DataProvider = ({ children }) => {
 
     // SESSIONS
     const addSession = async (sessionData) => {
-        const dbData = {
-            date_str: sessionData.dateStr,
-            slot: sessionData.slot,
-            teacher_id: sessionData.teacherId
-        };
-        const { data, error } = await supabase.from('sessions').insert([dbData]).select();
-        if (error) console.error("Error adding session", error);
-        else setSessions(prev => [...prev, { ...data[0], dateStr: data[0].date_str, students: [] }]);
-    };
-
-    const deleteSession = async (id) => {
-        const { error } = await supabase.from('sessions').delete().eq('id', id);
-        if (error) console.error("Error deleting session", error);
-        else setSessions(prev => prev.filter(s => s.id !== id));
-    };
-
-    // Update session generally not used directly for simple properties, mainly for students
-    const updateSession = async (id, updates) => {
-        // Implement if needed for slot/date changes
-    };
-
-    const assignStudentToSession = async (sessionId, studentId) => {
-        // Optimistic UI update or wait for DB? Let's do DB first for safety.
-        // Check if link exists? Supabase insert might error or duplicate.
-        // Schema constraints or logic check needed.
-
-        // Structure: session_students table
-        const { data, error } = await supabase.from('session_students').insert([{
-            session_id: sessionId,
-            student_id: studentId,
-            status: 'proposed'
-        }]).select();
-
-        if (error) {
-            console.error("Error assigning student", error);
-            return;
-        }
-
-        // Update local state
         setSessions(prev => prev.map(s => {
             if (s.id === sessionId) {
                 return { ...s, students: [...(s.students || []), { id: studentId, status: 'proposed' }] };

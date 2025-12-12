@@ -62,7 +62,8 @@ export const DataProvider = ({ children }) => {
             language: studentData.language,
             main_teacher_id: studentData.mainTeacherId || null,
             package_type: studentData.packageType,
-            package_start_date: studentData.packageStartDate || null
+            package_start_date: studentData.packageStartDate || null,
+            manual_classes_adjustment: studentData.manualClassesAdjustment || 0
         };
         const { data, error } = await supabase.from('students').insert([dbData]).select();
         if (error) console.error("Error adding student", error);
@@ -78,6 +79,7 @@ export const DataProvider = ({ children }) => {
         if (updates.mainTeacherId) dbUpdates.main_teacher_id = updates.mainTeacherId;
         if (updates.packageType) dbUpdates.package_type = updates.packageType;
         if (updates.packageStartDate) dbUpdates.package_start_date = updates.packageStartDate;
+        if (updates.manualClassesAdjustment !== undefined) dbUpdates.manual_classes_adjustment = updates.manualClassesAdjustment;
 
         const { data, error } = await supabase.from('students').update(dbUpdates).eq('id', id).select();
         if (error) console.error("Error updating student", error);
@@ -111,6 +113,95 @@ export const DataProvider = ({ children }) => {
 
     // SESSIONS
     const addSession = async (sessionData) => {
+        const dbData = {
+            date_str: sessionData.dateStr,
+            slot: sessionData.slot,
+            teacher_id: sessionData.teacherId
+        };
+        const { data, error } = await supabase.from('sessions').insert([dbData]).select();
+
+        if (error) {
+            console.error("Error adding session", error);
+            return;
+        }
+
+        const newSession = data[0];
+        let sessionStudents = [];
+
+        // Insert students if any
+        if (sessionData.students && sessionData.students.length > 0) {
+            const studentInserts = sessionData.students.map(s => ({
+                session_id: newSession.id,
+                student_id: s.id,
+                status: s.status || 'proposed'
+            }));
+
+            const { error: stuError } = await supabase.from('session_students').insert(studentInserts);
+            if (stuError) console.error("Error adding session students", stuError);
+            else sessionStudents = sessionData.students;
+        }
+
+        setSessions(prev => [...prev, {
+            ...newSession,
+            dateStr: newSession.date_str,
+            students: sessionStudents
+        }]);
+    };
+
+    const deleteSession = async (id) => {
+        const { error } = await supabase.from('sessions').delete().eq('id', id);
+        if (error) console.error("Error deleting session", error);
+        else setSessions(prev => prev.filter(s => s.id !== id));
+    };
+
+    const updateSession = async (id, updates) => {
+        // 1. Update Session Details
+        const { data, error } = await supabase.from('sessions').update({
+            teacher_id: updates.teacherId
+        }).eq('id', id).select();
+
+        if (error) {
+            console.error("Error updating session", error);
+            return;
+        }
+
+        // 2. Sync Students (Full Replace Strategy)
+        if (updates.students) {
+            // Delete existing
+            await supabase.from('session_students').delete().eq('session_id', id);
+
+            // Insert new
+            if (updates.students.length > 0) {
+                const studentInserts = updates.students.map(s => ({
+                    session_id: id,
+                    student_id: s.id,
+                    status: s.status || 'proposed'
+                }));
+                await supabase.from('session_students').insert(studentInserts);
+            }
+        }
+
+        // 3. Update Local State
+        setSessions(prev => prev.map(s => s.id === id ? {
+            ...s,
+            teacherId: updates.teacherId, // Update teacher
+            students: updates.students || s.students // Update students if provided
+        } : s));
+    };
+
+    const assignStudentToSession = async (sessionId, studentId) => {
+        const { data, error } = await supabase.from('session_students').insert([{
+            session_id: sessionId,
+            student_id: studentId,
+            status: 'proposed'
+        }]).select();
+
+        if (error) {
+            console.error("Error assigning student", error);
+            return;
+        }
+
+        // Update local state
         setSessions(prev => prev.map(s => {
             if (s.id === sessionId) {
                 return { ...s, students: [...(s.students || []), { id: studentId, status: 'proposed' }] };
@@ -119,27 +210,14 @@ export const DataProvider = ({ children }) => {
         }));
     };
 
-    // Helper functions need to adapt to new snake_case data if accessed directly
-    // But we are storing students in state as they come from DB (snake_case properties!)
-    // NOTE: This breaks existing components expecting camelCase (firstName, lastName).
-    // We MUST normalize data on fetch OR update components. 
-    // Plan: Normalize on fetch to keep components happy.
-
-    // RE-IMPLEMENTING FETCH TO NORMALIZE
-    // See useEffect above.
-
     const getStudentClassesCount = (studentId) => {
         const student = students.find(s => s.id === studentId);
-        // data coming from Supabase is formatted? 
-        // In useEffect, I just setStudents(sRes.data). 
-        // Supabase returns keys as in DB (snake_case).
-        // Components expect firstName. 
-        // FIX: I will add a normalization step in useEffect.
+        if (!student) return 0;
 
-        // For this function logic:
         const startDate = student?.package_start_date; // snake_case from DB
+        const manualAdjustment = student?.manual_classes_adjustment || 0;
 
-        return sessions.filter(s => {
+        const calculated = sessions.filter(s => {
             // s.dateStr is normalized in useEffect
             if (startDate && s.dateStr < startDate) return false;
 
@@ -148,12 +226,22 @@ export const DataProvider = ({ children }) => {
             }
             return false;
         }).length;
+
+        return calculated + manualAdjustment;
     };
 
     return (
         <DataContext.Provider value={{
-            students: students.map(s => ({ ...s, firstName: s.first_name, lastName: s.last_name, mainTeacherId: s.main_teacher_id, packageType: s.package_type, packageStartDate: s.package_start_date })), // Auto-mapping for context consumers
-            teachers, // Teachers might need mapping if they have snake_case cols? name/color/absences are simple. availability is jsonb.
+            students: students.map(s => ({
+                ...s,
+                firstName: s.first_name,
+                lastName: s.last_name,
+                mainTeacherId: s.main_teacher_id,
+                packageType: s.package_type,
+                packageStartDate: s.package_start_date,
+                manualClassesAdjustment: s.manual_classes_adjustment
+            })),
+            teachers,
             sessions,
             loading,
             addStudent, updateStudent, deleteStudent,

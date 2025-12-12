@@ -1,7 +1,9 @@
 import React from 'react';
 import { Calendar, Users, Activity } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 export function Layout({ currentTab, onTabChange, children }) {
+    const { user, logout } = useAuth();
     return (
         <div className="flex h-screen bg-gray-50">
             {/* Sidebar */}
@@ -32,13 +34,25 @@ export function Layout({ currentTab, onTabChange, children }) {
                 </nav>
 
                 <div className="p-4 border-t border-gray-100">
-                    <div className="flex items-center gap-3 p-2 rounded hover:bg-gray-50 cursor-pointer">
-                        <div className="w-8 h-8 rounded-full bg-gray-200"></div>
-                        <div>
-                            <div className="text-sm font-medium">Admin User</div>
-                            <div className="text-xs text-gray-500">admin@gpe.com</div>
+                    {user && (
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-3 p-2 rounded hover:bg-gray-50 cursor-pointer">
+                                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
+                                    {user.email[0].toUpperCase()}
+                                </div>
+                                <div className="overflow-hidden">
+                                    <div className="text-sm font-medium truncate">{user.email}</div>
+                                    <div className="text-xs text-gray-500">Admin</div>
+                                </div>
+                            </div>
+                            <button
+                                onClick={logout}
+                                className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 text-left"
+                            >
+                                Déconnexion
+                            </button>
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
 

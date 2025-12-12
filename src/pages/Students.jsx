@@ -68,6 +68,7 @@ export default function Students() {
         // If limit reached, override color to blue warning
         if (isLimitReached) {
             const label = pkg === 'discovery' ? 'Découverte (10€)' : 'Forfait (50€)';
+            // If manual adjustment makes it go over, user should know.
             return <span className={`${baseClass} badge-finished`}>{label} (Terminé)</span>;
         }
 
@@ -82,6 +83,7 @@ export default function Students() {
 
     const getProgress = (student) => {
         if (student.packageType === 'member') return 'Illimité';
+        if (student.packageType === 'contact') return '-';
         const limit = student.packageType === 'discovery' ? 1 : 5;
         const count = getStudentClassesCount(student.id);
         return `${count} / ${limit}`;

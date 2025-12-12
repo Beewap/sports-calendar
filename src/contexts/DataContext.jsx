@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 
 const DataContext = createContext();
 
+// DataContext v2.0 - Fix applied
 export const useData = () => useContext(DataContext);
 
 export const DataProvider = ({ children }) => {

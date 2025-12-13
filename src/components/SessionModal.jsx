@@ -22,14 +22,15 @@ export default function SessionModal({ isOpen, onClose, onSave, date, timeSlot, 
     const targetStudentInfo = isSingleEdit ? students.find(s => s.id === targetStudentId) : null;
 
     const [singleStatus, setSingleStatus] = useState(targetStudent?.status || 'proposed');
+    const [singleTeacherId, setSingleTeacherId] = useState(targetStudent?.teacherId || '');
 
     const handleSave = (e) => {
         e.preventDefault();
 
         if (isSingleEdit) {
-            // Update only the target student in the list
+            // Update only the target student in the list with their individual teacher
             const updatedStudents = existingStudents.map(s =>
-                s.id === targetStudentId ? { ...s, status: singleStatus } : s
+                s.id === targetStudentId ? { ...s, status: singleStatus, teacherId: singleTeacherId } : s
             );
             onSave({ teacherId, students: updatedStudents });
         } else {
@@ -61,11 +62,6 @@ export default function SessionModal({ isOpen, onClose, onSave, date, timeSlot, 
         let limit = 9999;
         if (s.packageType === 'discovery') limit = 1;
         else if (s.packageType === 'pack5') limit = 5;
-
-        // Note: We are adding a NEW session here (presumably). 
-        // If they are already matched to limit (e.g. 5/5), they cannot add a 6th.
-        // If this session is ALREADY one of their sessions (updating), we shouldn't block, 
-        // but addStudent is only used for *adding new* selection.
 
         if (s.packageType !== 'member' && count >= limit) {
             alert(`Impossible d'ajouter ${s.firstName} : Forfait atteint (${count}/${limit}). Veuillez passer en Membre.`);
@@ -101,44 +97,70 @@ export default function SessionModal({ isOpen, onClose, onSave, date, timeSlot, 
 
                 <form onSubmit={handleSave} className="flex flex-col gap-4">
 
-                    {/* Teacher Selection (Shared) */}
-                    <div>
-                        <label className="block text-sm font-medium mb-2">Professeur</label>
-                        <div className="flex flex-wrap gap-2">
-                            {teachers.map(t => (
-                                <div
-                                    key={t.id}
-                                    onClick={() => setTeacherId(t.id)}
-                                    className={`teacher-select-card ${teacherId === t.id ? 'selected' : ''}`}
-                                >
-                                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: t.color }}></div>
-                                    <span className="text-sm font-medium">{t.name}</span>
-                                </div>
-                            ))}
+                    {/* Teacher Selection (Only for Add Mode) */}
+                    {!isSingleEdit && (
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Professeur (pour tous les élèves ajoutés)</label>
+                            <div className="flex flex-wrap gap-2">
+                                {teachers.map(t => (
+                                    <div
+                                        key={t.id}
+                                        onClick={() => setTeacherId(t.id)}
+                                        className={`teacher-select-card ${teacherId === t.id ? 'selected' : ''}`}
+                                    >
+                                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: t.color }}></div>
+                                        <span className="text-sm font-medium">{t.name}</span>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* MODE: EDIT SINGLE STUDENT */}
                     {isSingleEdit && targetStudent && (
-                        <div>
-                            <label className="block text-sm font-medium mb-2">Statut</label>
-                            <div className="flex gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setSingleStatus('proposed')}
-                                    className={`status-btn proposed ${singleStatus === 'proposed' ? 'active' : ''}`}
-                                >
-                                    Proposé
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setSingleStatus('confirmed')}
-                                    className={`status-btn confirmed ${singleStatus === 'confirmed' ? 'active' : ''}`}
-                                >
-                                    Confirmé
-                                </button>
+                        <>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Statut</label>
+                                <div className="flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSingleStatus('proposed')}
+                                        className={`status-btn proposed ${singleStatus === 'proposed' ? 'active' : ''}`}
+                                    >
+                                        Proposé
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSingleStatus('confirmed')}
+                                        className={`status-btn confirmed ${singleStatus === 'confirmed' ? 'active' : ''}`}
+                                    >
+                                        Confirmé
+                                    </button>
+                                </div>
                             </div>
-                        </div>
+
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Coach pour {targetStudentInfo?.firstName}</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {teachers.map(t => (
+                                        <div
+                                            key={t.id}
+                                            onClick={() => setSingleTeacherId(t.id)}
+                                            className={`teacher-select-card ${singleTeacherId === t.id ? 'selected' : ''}`}
+                                        >
+                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: t.color }}></div>
+                                            <span className="text-sm font-medium">{t.name}</span>
+                                        </div>
+                                    ))}
+                                    <div
+                                        onClick={() => setSingleTeacherId('')}
+                                        className={`teacher-select-card ${singleTeacherId === '' ? 'selected' : ''}`}
+                                    >
+                                        <span className="text-sm font-medium text-gray-400">Aucun coach</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </>
                     )}
 
                     {/* MODE: ADD STUDENTS */}

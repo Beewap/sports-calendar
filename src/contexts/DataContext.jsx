@@ -34,9 +34,11 @@ export const DataProvider = ({ children }) => {
                 const formattedSessions = sesRes.data.map(session => ({
                     ...session,
                     dateStr: session.date_str, // Map snake_case to camelCase
+                    teacherId: session.teacher_id, // Keep for backward compatibility
                     students: session.students.map(link => ({
                         id: link.student_id,
-                        status: link.status
+                        status: link.status,
+                        teacherId: link.teacher_id // Individual teacher per student
                     }))
                 }));
                 setSessions(formattedSessions);

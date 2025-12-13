@@ -124,7 +124,7 @@ export default function Calendar() {
                                             if (session.students) {
                                                 sessionStudents = session.students.map(stu => {
                                                     const s = students.find(ref => ref.id === stu.id);
-                                                    return s ? { ...s, status: stu.status } : null;
+                                                    return s ? { ...s, status: stu.status, teacherId: stu.teacherId } : null;
                                                 }).filter(Boolean);
                                             } else if (session.studentIds) {
                                                 sessionStudents = session.studentIds.map(id => {
@@ -157,15 +157,30 @@ export default function Calendar() {
 
                                                 {session && (
                                                     <div className="flex flex-wrap gap-1 mt-1">
-                                                        {sessionStudents.map(s => (
-                                                            <button
-                                                                key={s.id}
-                                                                onClick={(e) => handleSlotClick(e, dateStr, slot, s.id)} // Target Student ID
-                                                                className={`badge-student ${s.status === 'confirmed' ? 'confirmed' : 'proposed'}`}
-                                                            >
-                                                                {s.firstName}
-                                                            </button>
-                                                        ))}
+                                                        {sessionStudents.map(s => {
+                                                            // Determine badge class based on status and individual teacher assignment
+                                                            let badgeClass = 'badge-student';
+                                                            if (s.status === 'confirmed') {
+                                                                // If confirmed but no teacher assigned to THIS STUDENT, show purple
+                                                                if (!s.teacherId) {
+                                                                    badgeClass += ' confirmed-no-coach';
+                                                                } else {
+                                                                    badgeClass += ' confirmed';
+                                                                }
+                                                            } else {
+                                                                badgeClass += ' proposed';
+                                                            }
+
+                                                            return (
+                                                                <button
+                                                                    key={s.id}
+                                                                    onClick={(e) => handleSlotClick(e, dateStr, slot, s.id)}
+                                                                    className={badgeClass}
+                                                                >
+                                                                    {s.firstName}
+                                                                </button>
+                                                            );
+                                                        })}
                                                         {sessionStudents.length === 0 && (
                                                             <span className="text-[10px] text-gray-300 italic">Vide</span>
                                                         )}

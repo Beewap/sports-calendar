@@ -489,6 +489,18 @@ select:focus {
   border-color: #34d399;
 }
 
+/* Confirmed but no coach assigned - Purple */
+.badge-student.confirmed-no-coach {
+  background-color: #f3e8ff;
+  border-color: #d8b4fe;
+  color: #6b21a8;
+}
+
+.badge-student.confirmed-no-coach:hover {
+  background-color: #e9d5ff;
+  border-color: #c084fc;
+}
+
 /* Add Student UI */
 .search-dropdown {
   position: absolute;

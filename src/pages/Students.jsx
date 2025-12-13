@@ -56,28 +56,30 @@ export default function Students() {
     const getPackageBadge = (student) => {
         const count = getStudentClassesCount(student.id);
         const pkg = student.packageType;
-        let limit = 0;
-        let isLimitReached = false;
-
-        if (pkg === 'discovery') limit = 1;
-        else if (pkg === 'pack5') limit = 5;
-
-        if (pkg !== 'member' && count >= limit) isLimitReached = true;
-
         const baseClass = "badge";
-        // If limit reached, override color to blue warning
-        if (isLimitReached) {
-            const label = pkg === 'discovery' ? 'Découverte (10€)' : 'Forfait (50€)';
-            // If manual adjustment makes it go over, user should know.
-            return <span className={`${baseClass} badge-finished`}>{label} (Terminé)</span>;
-        }
 
+        // Handle each package type with proper finished/active states
         switch (pkg) {
-            case 'contact': return <span className={`${baseClass} badge-gray`}>Prise de contact</span>;
-            case 'discovery': return <span className={`${baseClass} badge-yellow`}>Découverte (10€)</span>;
-            case 'pack5': return <span className={`${baseClass} badge-blue`}>Forfait (50€)</span>;
-            case 'member': return <span className={`${baseClass} badge-purple`}>Membre (140€)</span>;
-            default: return null;
+            case 'contact':
+                return <span className={`${baseClass} badge-contact`}>Prise de contact</span>;
+
+            case 'discovery':
+                if (count >= 1) {
+                    return <span className={`${baseClass} badge-discovery-finished`}>Découverte (10€) (Terminé)</span>;
+                }
+                return <span className={`${baseClass} badge-discovery-active`}>Découverte (10€)</span>;
+
+            case 'pack5':
+                if (count >= 5) {
+                    return <span className={`${baseClass} badge-pack5-finished`}>Forfait (50€) (Terminé)</span>;
+                }
+                return <span className={`${baseClass} badge-pack5-active`}>Forfait (50€)</span>;
+
+            case 'member':
+                return <span className={`${baseClass} badge-member`}>Membre (140€)</span>;
+
+            default:
+                return null;
         }
     };
 
@@ -93,26 +95,25 @@ export default function Students() {
         const pkg = student.packageType;
         const count = getStudentClassesCount(student.id);
 
-        // 1. Members (Top priority)
+        // 1. Members
         if (pkg === 'member') return 1;
 
-        // 2. Finished Packages (Limit Reached)
-        let limit = 9999;
-        if (pkg === 'discovery') limit = 1;
-        else if (pkg === 'pack5') limit = 5;
+        // 2. Forfait 5 leçons Terminé
+        if (pkg === 'pack5' && count >= 5) return 2;
 
-        if (count >= limit) return 2;
+        // 3. Forfait 5 leçons (en cours)
+        if (pkg === 'pack5' && count < 5) return 3;
 
-        // 3. Active 5 Pack
-        if (pkg === 'pack5') return 3;
+        // 4. Découverte Terminée
+        if (pkg === 'discovery' && count >= 1) return 4;
 
-        // 4. Active Discovery
-        if (pkg === 'discovery') return 4;
+        // 5. Découverte (pas encore effectuée)
+        if (pkg === 'discovery' && count < 1) return 5;
 
-        // 5. Contact
-        if (pkg === 'contact') return 5;
+        // 6. Prise de contact
+        if (pkg === 'contact') return 6;
 
-        return 6; // Fallback
+        return 7; // Fallback
     };
 
     const sortedStudents = [...students].sort((a, b) => {
@@ -293,11 +294,25 @@ export default function Students() {
 
             <style>{`
         .badge { padding: 4px 8px; border-radius: 99px; font-size: 0.75rem; font-weight: 600; }
-        .badge-yellow { background: #fef9c3; color: #854d0e; }
-        .badge-blue { background: #dbeafe; color: #1e40af; }
-        .badge-purple { background: #f3e8ff; color: #6b21a8; }
-        .badge-gray { background: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; }
-        .badge-finished { background: #bfdbfe; color: #172554; border: 1px solid #60a5fa; }
+        
+        /* Membre - Vert */
+        .badge-member { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+        
+        /* Forfait 5 leçons terminé - Orange */
+        .badge-pack5-finished { background: #fed7aa; color: #9a3412; border: 1px solid #fb923c; }
+        
+        /* Forfait 5 leçons en cours - Orange clair */
+        .badge-pack5-active { background: #ffedd5; color: #c2410c; border: 1px solid #fdba74; }
+        
+        /* Découverte terminée - Rose */
+        .badge-discovery-finished { background: #fce7f3; color: #9f1239; border: 1px solid #f9a8d4; }
+        
+        /* Découverte pas encore effectuée - Bleu clair */
+        .badge-discovery-active { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+        
+        /* Prise de contact - Violet */
+        .badge-contact { background: #f3e8ff; color: #6b21a8; border: 1px solid #d8b4fe; }
+        
         .accent-indigo-600 { accent-color: #4f46e5; }
       `}</style>
         </div>

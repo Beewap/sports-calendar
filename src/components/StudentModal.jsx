@@ -21,7 +21,6 @@ export default function StudentModal({ isOpen, onClose, onSave, studentToEdit, t
                 email: studentToEdit.email || '',
                 language: studentToEdit.language || 'fr',
                 mainTeacherId: studentToEdit.mainTeacherId || '',
-                mainTeacherId: studentToEdit.mainTeacherId || '',
                 packageType: studentToEdit.packageType || 'contact',
                 manualClassesAdjustment: studentToEdit.manualClassesAdjustment || 0,
                 needsProposal: studentToEdit.needsProposal || false

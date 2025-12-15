@@ -66,7 +66,8 @@ export const DataProvider = ({ children }) => {
             main_teacher_id: studentData.mainTeacherId || null,
             package_type: studentData.packageType,
             package_start_date: studentData.packageStartDate || null,
-            manual_classes_adjustment: studentData.manualClassesAdjustment || 0
+            manual_classes_adjustment: studentData.manualClassesAdjustment || 0,
+            needs_proposal: studentData.needsProposal || false
         };
         const { data, error } = await supabase.from('students').insert([dbData]).select();
         if (error) console.error("Error adding student", error);
@@ -80,6 +81,7 @@ export const DataProvider = ({ children }) => {
         if (updates.email) dbUpdates.email = updates.email;
         if (updates.language) dbUpdates.language = updates.language;
         if (updates.mainTeacherId) dbUpdates.main_teacher_id = updates.mainTeacherId;
+        if (updates.needsProposal !== undefined) dbUpdates.needs_proposal = updates.needsProposal;
         if (updates.packageType) dbUpdates.package_type = updates.packageType;
         if (updates.packageStartDate) dbUpdates.package_start_date = updates.packageStartDate;
         if (updates.manualClassesAdjustment !== undefined) dbUpdates.manual_classes_adjustment = updates.manualClassesAdjustment;
@@ -240,6 +242,7 @@ export const DataProvider = ({ children }) => {
                 firstName: s.first_name,
                 lastName: s.last_name,
                 mainTeacherId: s.main_teacher_id,
+                needsProposal: s.needs_proposal,
                 packageType: s.package_type,
                 packageStartDate: s.package_start_date,
                 manualClassesAdjustment: s.manual_classes_adjustment

@@ -9,7 +9,8 @@ export default function StudentModal({ isOpen, onClose, onSave, studentToEdit, t
         language: 'fr',
         mainTeacherId: '',
         packageType: 'contact',
-        manualClassesAdjustment: 0
+        manualClassesAdjustment: 0,
+        needsProposal: false
     });
 
     useEffect(() => {
@@ -20,8 +21,10 @@ export default function StudentModal({ isOpen, onClose, onSave, studentToEdit, t
                 email: studentToEdit.email || '',
                 language: studentToEdit.language || 'fr',
                 mainTeacherId: studentToEdit.mainTeacherId || '',
+                mainTeacherId: studentToEdit.mainTeacherId || '',
                 packageType: studentToEdit.packageType || 'contact',
-                manualClassesAdjustment: studentToEdit.manualClassesAdjustment || 0
+                manualClassesAdjustment: studentToEdit.manualClassesAdjustment || 0,
+                needsProposal: studentToEdit.needsProposal || false
             });
         } else {
             setFormData({
@@ -31,7 +34,8 @@ export default function StudentModal({ isOpen, onClose, onSave, studentToEdit, t
                 language: 'fr',
                 mainTeacherId: '',
                 packageType: 'contact',
-                manualClassesAdjustment: 0
+                manualClassesAdjustment: 0,
+                needsProposal: false
             });
         }
     }, [studentToEdit, isOpen]);
@@ -159,6 +163,20 @@ export default function StudentModal({ isOpen, onClose, onSave, studentToEdit, t
                         <p className="text-xs text-gray-500 mt-1">
                             Utilisez ce champ pour ajuster manuellement le nombre de cours complétés (ex: +2 ou -1)
                         </p>
+                    </div>
+
+                    {/* Needs Proposal Checkbox */}
+                    <div className="flex items-center gap-2 mt-2 p-2 bg-red-50 rounded border border-red-100">
+                        <input
+                            type="checkbox"
+                            id="needsProposal"
+                            checked={formData.needsProposal || false}
+                            onChange={(e) => setFormData({ ...formData, needsProposal: e.target.checked })}
+                            className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="needsProposal" className="text-sm font-medium text-red-700">
+                            À proposer des dates (Indicateur rouge)
+                        </label>
                     </div>
 
                     {/* Action Buttons */}

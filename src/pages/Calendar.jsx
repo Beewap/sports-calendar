@@ -84,123 +84,129 @@ export default function Calendar() {
                     </div>
                 </div>
 
-                <div className="calendar-grid flex-1">
-                    {/* Headers */}
-                    {weekDays.map(d => (
-                        <div key={d} className="bg-gray-50 p-2 text-center text-sm font-semibold text-gray-500 uppercase tracking-wide">
-                            {d}
-                        </div>
-                    ))}
-
-                    {/* Days */}
-                    {days.map((d, i) => {
-                        const dateStr = toIsoDate(d.date);
-                        const isToday = dateStr === toIsoDate(new Date());
-                        const isCourseDay = isClassDay(d.date);
-
-                        return (
-                            <div
-                                key={i}
-                                className={`
-                                calendar-day
-                                ${!d.isCurrentMonth ? 'other-month' : ''}
-                                ${isCourseDay && d.isCurrentMonth ? 'course-day' : ''}
-                            `}
-                            >
-                                <div className={`
-                                text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full mb-1
-                                ${isToday ? 'bg-indigo-600 text-white' : ''}
-                            `}>
-                                    {d.date.getDate()}
-                                </div>
-
-                                {isCourseDay && d.isCurrentMonth && (
-                                    <div className="flex flex-col gap-1 flex-1">
-                                        {slots.map(slot => {
-                                            const session = getSession(dateStr, slot);
-                                            const teacher = session ? teachers.find(t => t.id === session.teacherId) : null;
-
-                                            // Normalize students list
-                                            let sessionStudents = [];
-                                            if (session) {
-                                                if (session.students) {
-                                                    sessionStudents = session.students.map(stu => {
-                                                        const s = students.find(ref => ref.id === stu.id);
-                                                        return s ? { ...s, status: stu.status, teacherId: stu.teacherId } : null;
-                                                    }).filter(Boolean);
-                                                } else if (session.studentIds) {
-                                                    sessionStudents = session.studentIds.map(id => {
-                                                        const s = students.find(ref => ref.id === id);
-                                                        return s ? { ...s, status: session.status || 'proposed' } : null;
-                                                    }).filter(Boolean);
-                                                }
-                                            }
-
-                                            return (
-                                                <div
-                                                    key={slot}
-                                                    className={`
-                                                    slot-card relative
-                                                    ${session ? 'bg-white border-gray-200' : 'slot-empty'}
-                                                `}
-                                                >
-                                                    <div className="flex justify-between items-start mb-1">
-                                                        <span className="text-xs font-bold mt-0.5">{slot}</span>
-
-                                                        {/* Add Button */}
-                                                        <button
-                                                            onClick={(e) => handleSlotClick(e, dateStr, slot, null)} // Null target = Add Mode
-                                                            className="hover:bg-indigo-50 p-0.5 rounded text-indigo-500 transition-colors"
-                                                            title="Ajouter un élève"
-                                                        >
-                                                            <Plus size={14} />
-                                                        </button>
-                                                    </div>
-
-                                                    {session && (
-                                                        <div className="flex flex-wrap gap-1 mt-1">
-                                                            {sessionStudents.map(s => {
-                                                                // Determine badge class based on status and individual teacher assignment
-                                                                let badgeClass = 'badge-student';
-                                                                if (s.status === 'confirmed') {
-                                                                    // If confirmed but no teacher assigned to THIS STUDENT, show purple
-                                                                    if (!s.teacherId) {
-                                                                        badgeClass += ' confirmed-no-coach';
-                                                                    } else {
-                                                                        badgeClass += ' confirmed';
-                                                                    }
-                                                                } else {
-                                                                    badgeClass += ' proposed';
-                                                                }
-
-                                                                return (
-                                                                    <button
-                                                                        key={s.id}
-                                                                        onClick={(e) => handleSlotClick(e, dateStr, slot, s.id)}
-                                                                        className={badgeClass}
-                                                                    >
-                                                                        {s.firstName}
-                                                                    </button>
-                                                                );
-                                                            })}
-                                                            {sessionStudents.length === 0 && (
-                                                                <span className="text-[10px] text-gray-300 italic">Vide</span>
-                                                            )}
-                                                        </div>
-                                                    )}
-
-                                                    {/* Teacher Dot (Indicator) */}
-                                                    {session && teacher && (
-                                                        <div className="absolute bottom-1 right-1 w-2 h-2 rounded-full opacity-50" style={{ backgroundColor: teacher.color }}></div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
+                <div className="flex-1 overflow-auto bg-gray-50 border-t border-gray-200">
+                    <div className="calendar-grid h-full">
+                        {/* Headers */}
+                        {weekDays.map(d => (
+                            <div key={d} className="bg-gray-50 p-2 text-center text-sm font-semibold text-gray-500 uppercase tracking-wide sticky top-0 z-10 border-b border-gray-200">
+                                {d}
                             </div>
-                        );
-                    })}
+                        ))}
+
+                        {/* Days */}
+                        {days.map((d, i) => {
+                            const dateStr = toIsoDate(d.date);
+                            const isToday = dateStr === toIsoDate(new Date());
+                            const isCourseDay = isClassDay(d.date);
+
+                            return (
+                                <div
+                                    key={i}
+                                    className={`
+                                    calendar-day
+                                    ${!d.isCurrentMonth ? 'other-month' : ''}
+                                    ${isCourseDay && d.isCurrentMonth ? 'course-day' : ''}
+                                `}
+                                >
+                                    <div className={`
+                                    text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full mb-1
+                                    ${isToday ? 'bg-indigo-600 text-white' : ''}
+                                `}>
+                                        {d.date.getDate()}
+                                    </div>
+
+                                    {isCourseDay && d.isCurrentMonth && (
+                                        <div className="flex flex-col gap-1 flex-1">
+                                            {slots.map(slot => {
+                                                const session = getSession(dateStr, slot);
+                                                const teacher = session ? teachers.find(t => t.id === session.teacherId) : null;
+
+                                                // Normalize students list
+                                                let sessionStudents = [];
+                                                if (session) {
+                                                    if (session.students) {
+                                                        sessionStudents = session.students.map(stu => {
+                                                            const s = students.find(ref => ref.id === stu.id);
+                                                            return s ? { ...s, status: stu.status, teacherId: stu.teacherId } : null;
+                                                        }).filter(Boolean);
+                                                    } else if (session.studentIds) {
+                                                        sessionStudents = session.studentIds.map(id => {
+                                                            const s = students.find(ref => ref.id === id);
+                                                            return s ? { ...s, status: session.status || 'proposed' } : null;
+                                                        }).filter(Boolean);
+                                                    }
+                                                }
+
+                                                return (
+                                                    <div
+                                                        key={slot}
+                                                        className={`
+                                                        slot-card relative
+                                                        ${session ? 'bg-white border-gray-200' : 'slot-empty'}
+                                                    `}
+                                                    >
+                                                        <div className="flex justify-between items-start mb-1">
+                                                            <span className="text-xs font-bold mt-0.5">{slot}</span>
+
+                                                            {/* Add Button */}
+                                                            <button
+                                                                onClick={(e) => handleSlotClick(e, dateStr, slot, null)} // Null target = Add Mode
+                                                                className="hover:bg-indigo-50 p-0.5 rounded text-indigo-500 transition-colors"
+                                                                title="Ajouter un élève"
+                                                            >
+                                                                <Plus size={14} />
+                                                            </button>
+                                                        </div>
+
+                                                        {session && (
+                                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                                {sessionStudents.map(s => {
+                                                                    // Determine badge class based on status and individual teacher assignment
+                                                                    let badgeClass = 'badge-student';
+                                                                    if (s.status === 'confirmed') {
+                                                                        // If confirmed but no teacher assigned to THIS STUDENT, show purple
+                                                                        if (!s.teacherId) {
+                                                                            badgeClass += ' confirmed-no-coach';
+                                                                        } else {
+                                                                            badgeClass += ' confirmed';
+                                                                        }
+                                                                    } else {
+                                                                        badgeClass += ' proposed';
+                                                                    }
+
+                                                                    if (s.needsProposal) {
+                                                                        badgeClass += ' needs-proposal';
+                                                                    }
+
+                                                                    return (
+                                                                        <button
+                                                                            key={s.id}
+                                                                            onClick={(e) => handleSlotClick(e, dateStr, slot, s.id)}
+                                                                            className={badgeClass}
+                                                                        >
+                                                                            {s.firstName} {s.lastName?.charAt(0)}.
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                                {sessionStudents.length === 0 && (
+                                                                    <span className="text-[10px] text-gray-300 italic">Vide</span>
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        {/* Teacher Dot (Indicator) */}
+                                                        {session && teacher && (
+                                                            <div className="absolute bottom-1 right-1 w-2 h-2 rounded-full opacity-50" style={{ backgroundColor: teacher.color }}></div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
 
                 {modalOpen && (

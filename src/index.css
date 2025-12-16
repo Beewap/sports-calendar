@@ -290,6 +290,8 @@ select:focus {
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  /* min-width: 1260px; REMOVED */
+  /* 7 * 180 */
   gap: 1px;
   background-color: #e2e8f0;
   border: 1px solid #e2e8f0;
@@ -499,6 +501,18 @@ select:focus {
 .badge-student.confirmed-no-coach:hover {
   background-color: #e9d5ff;
   border-color: #c084fc;
+}
+
+/* Needs Proposal - Red */
+.badge-student.needs-proposal {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.badge-student.needs-proposal:hover {
+  background-color: #fee2e2;
+  border-color: #fca5a5;
 }
 
 /* Add Student UI */

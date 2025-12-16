@@ -5,26 +5,53 @@ export default function PlanningSidebar() {
     const { students, sessions, teachers } = useData();
 
     // Helper to get future sessions (from today)
-    // We can show all for now or filter. Let's show all valid sessions for context.
-    const sortedSessions = [...sessions].sort((a, b) => new Date(a.dateStr) - new Date(b.dateStr));
+    const todayStr = new Date().toISOString().split('T')[0];
+    const sortedSessions = sessions
+        .filter(s => s.dateStr >= todayStr)
+        .sort((a, b) => new Date(a.dateStr) - new Date(b.dateStr));
 
     // 1. Students needing proposal
     const studentsNeedingProposal = students.filter(s => s.needsProposal);
 
-    // Helper to extract session-student items
-    const getSessionItems = (filterFn) => {
+    // Helper to extract session-student items with deduplication support
+    const getUniqueItems = (filterFn, existingIds = new Set()) => {
         const items = [];
+        const addedIds = new Set(); // Track IDs added in THIS list
+
         sortedSessions.forEach(session => {
             if (session.students) {
                 session.students.forEach(sLink => {
                     if (filterFn(sLink, session)) {
                         const student = students.find(s => s.id === sLink.id);
                         if (student) {
-                            items.push({
-                                session,
-                                student,
-                                sLink
-                            });
+                            // Only add if not already in this specific list
+                            if (!addedIds.has(student.id)) {
+                                items.push({
+                                    session, // We keep the first found session for metadata if needed (e.g. date)
+                                    student,
+                                    sLink,
+                                    count: 1 // Init count
+                                });
+                                addedIds.add(student.id);
+                            } else {
+                                // Increment count if already added? 
+                                // User said: "affiche le 2x". 
+                                // "Si un a 2 ou plusieurs leçons dont une entièrement confirmé... là affiche le 2x" -> implies we should show counts?
+                                // "Si un élève a 2 ou plusieurs leçons de prévues et qui est entièrement confirmé... ne l'écrit qu'une seul fois." 
+                                // Wait, the user said: "ne l'écrit qu'une seul fois".
+                                // And: "Si un a 2 ou plusieurs leçons dont une entièrement confirmé ( vert) et une en attente (jaune), là affiche le 2x." - This implies showing in BOTH lists.
+                                // My `getUniqueItems` is separate per list. So "showing in both lists" happens naturally if I don't share exclusion across lists.
+                                // The user said: "Lélève apparait 1x par statu de couleur même si plusieurs leçons sont prévues." 
+                                // So strictly 1x per list. No "2x" badge needed?
+                                // "affiche le 2x" -> This might mean "show it twice" (once in green, once in yellow).
+                                // OR it might mean "Show a badge saying '2x'".
+                                // "Si un a 2... dont une vert et une jaune, là affiche le 2x."
+                                // Context: "Quand un même élève apparait plusieurs fois dans la liste de planification et dans la même couleur, indique seulement une fois."
+                                // This implies: Green List -> Student A (once, even if 2 green sessions).
+                                // Yellow List -> Student A (once, even if 1 yellow session).
+                                // Result: Student A appears in Green AND Yellow. (Total 2x in the sidebar).
+                                // OK, so my deduplication logic per list `addedIds` is correct.
+                            }
                         }
                     }
                 });
@@ -34,87 +61,92 @@ export default function PlanningSidebar() {
     };
 
     // 2. Pending Confirmation (status = 'proposed')
-    const pendingConfirmation = getSessionItems((sLink) => sLink.status === 'proposed');
+    const pendingConfirmation = getUniqueItems((sLink) => sLink.status === 'proposed');
 
     // 3. Needs Coach (status = 'confirmed' AND !teacherId)
-    const needsCoach = getSessionItems((sLink) => sLink.status === 'confirmed' && !sLink.teacherId);
+    const needsCoach = getUniqueItems((sLink) => sLink.status === 'confirmed' && !sLink.teacherId);
 
     // 4. Confirmed with Coach (status = 'confirmed' AND teacherId)
-    const confirmedWithCoach = getSessionItems((sLink) => sLink.status === 'confirmed' && sLink.teacherId);
+    const confirmedWithCoach = getUniqueItems((sLink) => sLink.status === 'confirmed' && sLink.teacherId);
 
-    const Section = ({ title, count, colorClass, items, type = 'session' }) => (
-        <div className="mb-6">
-            <h3 className={`font-bold text-sm uppercase tracking-wide mb-2 flex justify-between items-center ${colorClass}`}>
-                {title}
-                <span className="bg-white px-2 py-0.5 rounded text-xs border">{count}</span>
-            </h3>
-            <div className="flex flex-col gap-2">
-                {items.length === 0 && <span className="text-xs text-gray-400 italic">Aucun élève</span>}
-
-                {type === 'student' && items.map(s => (
-                    <div key={s.id} className="bg-white p-2 rounded shadow-sm border-l-4 border-red-500 text-sm">
-                        <span className="font-medium">{s.firstName} {s.lastName}</span>
-                        <div className="text-xs text-gray-500">{s.packageType}</div>
-                    </div>
-                ))}
-
-                {type === 'session' && items.map((item, idx) => (
-                    <div key={`${item.session.id}-${item.student.id}-${idx}`} className="bg-white p-2 rounded shadow-sm text-sm border border-gray-100">
-                        <div className="flex justify-between">
-                            <span className="font-bold">{item.student.firstName}</span>
-                            <span className="text-xs text-gray-500">{item.session.dateStr}</span>
-                        </div>
-                        <div className="flex justify-between mt-1">
-                            <span className="text-xs text-gray-600">{item.session.slot}</span>
-                            {/* Show assigned teacher if confirmed */}
-                            {item.sLink.teacherId && (
-                                <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-700">
-                                    {teachers.find(t => t.id === item.sLink.teacherId)?.name || 'Inconnu'}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
+    const formatName = (s) => `${s.firstName} ${s.lastName?.charAt(0) || ''}.`;
 
     return (
-        <div className="planning-sidebar bg-gray-50 border-l border-gray-200 w-80 min-w-[320px] p-4 overflow-y-auto h-full hidden md:block">
+        <div className="planning-sidebar bg-gray-50 border-l border-gray-200 p-4 overflow-y-auto h-full flex-none" style={{ width: '16rem', minWidth: '16rem', maxWidth: '16rem' }}>
             <h2 className="text-lg font-bold mb-4 text-gray-800 border-b pb-2">Planification</h2>
 
-            {/* 1. Need Proposal - RED */}
-            <Section
-                title="À Proposer"
-                count={studentsNeedingProposal.length}
-                colorClass="text-red-600"
-                items={studentsNeedingProposal}
-                type="student"
-            />
+            <div className="flex flex-col gap-6">
 
-            {/* 2. Pending Confirmation - YELLOW */}
-            <Section
-                title="Attente Confirmation"
-                count={pendingConfirmation.length}
-                colorClass="text-yellow-600"
-                items={pendingConfirmation}
-            />
+                {/* 1. Need Proposal - RED (studentsNeedingProposal) */}
+                {studentsNeedingProposal.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                        {studentsNeedingProposal.map(s => (
+                            <div
+                                key={`np-${s.id}`}
+                                className="badge-student needs-proposal"
+                                title="En attente de date"
+                            >
+                                {formatName(s)}
+                            </div>
+                        ))}
+                    </div>
+                )}
 
-            {/* 3. Needs Coach - PURPLE */}
-            <Section
-                title="Attente Coach"
-                count={needsCoach.length}
-                colorClass="text-purple-600"
-                items={needsCoach}
-            />
+                {/* 2. Pending Confirmation - YELLOW (pendingConfirmation) */}
+                {pendingConfirmation.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                        {pendingConfirmation.map((item, idx) => (
+                            <div
+                                key={`pc-${item.student.id}`}
+                                className="badge-student proposed"
+                                title="En attente de confirmation"
+                            >
+                                {formatName(item.student)}
+                            </div>
+                        ))}
+                    </div>
+                )}
 
-            {/* 4. Confirmed - GREEN */}
-            <Section
-                title="Confirmé"
-                count={confirmedWithCoach.length}
-                colorClass="text-green-600"
-                items={confirmedWithCoach}
-            />
+                {/* 3. Needs Coach - PURPLE (needsCoach) */}
+                {needsCoach.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                        {needsCoach.map((item, idx) => (
+                            <div
+                                key={`nc-${item.student.id}`}
+                                className="badge-student confirmed-no-coach"
+                                title="En attente de coach"
+                            >
+                                {formatName(item.student)}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* 4. Confirmed - GREEN (confirmedWithCoach) */}
+                {confirmedWithCoach.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                        {confirmedWithCoach.map((item, idx) => (
+                            <div
+                                key={`cc-${item.student.id}`}
+                                className="badge-student confirmed"
+                                title="Confirmé"
+                            >
+                                {formatName(item.student)}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Empty State */}
+                {studentsNeedingProposal.length === 0 &&
+                    pendingConfirmation.length === 0 &&
+                    needsCoach.length === 0 &&
+                    confirmedWithCoach.length === 0 && (
+                        <span className="text-xs text-gray-400 italic w-full text-center mt-4">
+                            Aucune planification en cours
+                        </span>
+                    )}
+            </div>
         </div>
     );
 }

@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
-import { Mail, Settings } from 'lucide-react';
+import { Mail, Settings, Search } from 'lucide-react';
+import { toIsoDate } from '../utils/dateUtils';
 import StudentModal from '../components/StudentModal';
 import TeacherManagerModal from '../components/TeacherManagerModal';
 
 export default function Students() {
-    const { students, teachers, getStudentClassesCount, addStudent, updateStudent, deleteStudent, updateTeacher } = useData();
+    const { students, teachers, getStudentClassesCount, getStudentSessionsDetail, addStudent, updateStudent, deleteStudent, updateTeacher } = useData();
     const [modalOpen, setModalOpen] = useState(false);
     const [studentToEdit, setStudentToEdit] = useState(null);
     const [teacherModalOpen, setTeacherModalOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
     // --- Student Handlers ---
     const handleAddClick = () => {
@@ -27,22 +29,23 @@ export default function Students() {
             return;
         }
 
-        const today = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const today = toIsoDate(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
+
         const updates = { ...data };
 
-        if (studentToEdit) {
-            // Check if switching TO pack5 from something else
-            // OR if already pack5 but we want to force reset? 
-            // The requirement says "prend un forfait de 5 leçons".
-            // Typically implies a state change. 
-            if (updates.packageType === 'pack5' && studentToEdit.packageType !== 'pack5') {
+        // Logic to auto-set packageStartDate if not provided manually
+        const isTrackedPackage = ['pack5', 'member'].includes(updates.packageType);
+
+        if (isTrackedPackage && !updates.packageStartDate) {
+            if (!studentToEdit || studentToEdit.packageType !== updates.packageType) {
                 updates.packageStartDate = today;
             }
+        }
+
+        if (studentToEdit) {
             updateStudent(studentToEdit.id, updates);
         } else {
-            if (updates.packageType === 'pack5') {
-                updates.packageStartDate = today;
-            }
             addStudent(updates);
         }
     };
@@ -53,79 +56,153 @@ export default function Students() {
         return t ? t.name : '-';
     };
 
+    // --- Date & Status Helpers ---
+
+    const getPastClassesCount = (studentId) => {
+        const details = getStudentSessionsDetail(studentId);
+        const today = toIsoDate(new Date());
+        return details.countedSessions.filter(s => s.date < today).length;
+    };
+
+    const getEffectiveStartDate = (student) => {
+        if (student.packageStartDate) return student.packageStartDate;
+
+        const details = getStudentSessionsDetail(student.id);
+        const sorted = [...details.countedSessions].sort((a, b) => a.date.localeCompare(b.date));
+
+        if (sorted.length >= 2) {
+            return sorted[1].date; // 2nd lesson
+        }
+        if (sorted.length === 1) {
+            return sorted[0].date; // 1st lesson fallback
+        }
+        return null;
+    };
+
+    const isDateOlderThan = (dateStr, months) => {
+        if (!dateStr) return false;
+        const start = new Date(dateStr);
+        const deadline = new Date();
+        deadline.setMonth(deadline.getMonth() - months);
+        // Start < Deadline means Start is OLDER than X months ago
+        return start < deadline;
+    };
+
+    const getDiscoveryStatus = (student) => {
+        const details = getStudentSessionsDetail(student.id);
+        if (details.countedSessions.length === 0) return 'future';
+
+        const today = toIsoDate(new Date());
+        const pastSessions = details.countedSessions.filter(s => s.date < today);
+
+        if (pastSessions.length > 0) {
+            const lastSessionDate = pastSessions[0].date;
+            if (isDateOlderThan(lastSessionDate, 3)) return 'inactive';
+            return 'finished';
+        }
+        return 'future';
+    };
+
     const getPackageBadge = (student) => {
-        const count = getStudentClassesCount(student.id);
         const pkg = student.packageType;
         const baseClass = "badge";
+        const pastCount = getPastClassesCount(student.id);
 
-        // Handle each package type with proper finished/active states
-        switch (pkg) {
-            case 'contact':
-                return <span className={`${baseClass} badge-contact`}>Prise de contact</span>;
+        if (pkg === 'member') return <span className={`${baseClass} badge-member`}>Membre (140€)</span>;
+        if (pkg === 'member_inactive') return <span className={`${baseClass} badge-member-inactive`}>Membre (Non-actif)</span>;
+        if (pkg === 'contact') return <span className={`${baseClass} badge-contact`}>Prise de contact</span>;
 
-            case 'discovery':
-                if (count >= 1) {
-                    return <span className={`${baseClass} badge-discovery-finished`}>Découverte (10€) (Terminé)</span>;
+        if (pkg === 'pack5') {
+            const startDate = getEffectiveStartDate(student);
+
+            // 2. Finished
+            if (pastCount >= 5) {
+                if (isDateOlderThan(startDate, 5)) {
+                    // 8. Finished but Old (more than 5 months)
+                    return <span className={`${baseClass} badge-pack5-expired`}>Forfait Dépassé (plus de 5 mois)</span>;
                 }
-                return <span className={`${baseClass} badge-discovery-active`}>Découverte (10€)</span>;
+                // 2. Finished Standard
+                return <span className={`${baseClass} badge-pack5-finished`}>Forfait (50€) (Terminé)</span>;
+            }
 
-            case 'pack5':
-                if (count >= 5) {
-                    return <span className={`${baseClass} badge-pack5-finished`}>Forfait (50€) (Terminé)</span>;
-                }
-                return <span className={`${baseClass} badge-pack5-active`}>Forfait (50€)</span>;
+            // Unfinished
+            if (isDateOlderThan(startDate, 3)) {
+                // 8. Unfinished but Expired (more than 3 months)
+                return <span className={`${baseClass} badge-pack5-expired`}>Forfait Dépassé (plus de 3 mois)</span>;
+            }
 
-            case 'member':
-                return <span className={`${baseClass} badge-member`}>Membre (140€)</span>;
-
-            default:
-                return null;
+            // 3. Active
+            return <span className={`${baseClass} badge-pack5-active`}>Forfait (50€)</span>;
         }
+
+        if (pkg === 'discovery') {
+            const status = getDiscoveryStatus(student);
+            if (status === 'inactive') return <span className={`${baseClass} badge-discovery-inactive`}>Découverte (Inactif)</span>;
+            if (status === 'finished') return <span className={`${baseClass} badge-discovery-finished`}>Découverte (10€) (Terminé)</span>;
+            return <span className={`${baseClass} badge-discovery-active`}>Découverte (10€)</span>;
+        }
+
+        return null;
     };
 
     const getProgress = (student) => {
         if (student.packageType === 'member') return 'Illimité';
+        if (student.packageType === 'member_inactive') return '-';
         if (student.packageType === 'contact') return '-';
         const limit = student.packageType === 'discovery' ? 1 : 5;
         const count = getStudentClassesCount(student.id);
+        const pastCount = getPastClassesCount(student.id);
+
+        if (student.packageType === 'pack5' && pastCount >= 5) {
+            return <span className="text-green-600 font-bold">{pastCount} / {limit} (Terminé)</span>;
+        }
+
         return `${count} / ${limit}`;
     };
 
     const getSortPriority = (student) => {
         const pkg = student.packageType;
-        const count = getStudentClassesCount(student.id);
+        const pastCount = getPastClassesCount(student.id);
 
-        // 1. Members
         if (pkg === 'member') return 1;
 
-        // 2. Forfait 5 leçons Terminé
-        if (pkg === 'pack5' && count >= 5) return 2;
+        if (pkg === 'pack5') {
+            const startDate = getEffectiveStartDate(student);
+            if (!startDate) return 3;
 
-        // 3. Forfait 5 leçons (en cours)
-        if (pkg === 'pack5' && count < 5) return 3;
+            const isStartOld3 = isDateOlderThan(startDate, 3);
+            const isStartOld5 = isDateOlderThan(startDate, 5);
 
-        // 4. Découverte Terminée
-        if (pkg === 'discovery' && count >= 1) return 4;
+            if (pastCount >= 5) {
+                if (isStartOld5) return 8;
+                return 2;
+            } else {
+                if (isStartOld3) return 8;
+                return 3;
+            }
+        }
 
-        // 5. Découverte (pas encore effectuée)
-        if (pkg === 'discovery' && count < 1) return 5;
+        const discStatus = getDiscoveryStatus(student);
 
-        // 6. Prise de contact
+        if (pkg === 'discovery' && discStatus === 'finished') return 4;
+        if (pkg === 'discovery' && discStatus === 'future') return 5;
         if (pkg === 'contact') return 6;
+        if (pkg === 'member_inactive') return 7;
+        if (pkg === 'discovery' && discStatus === 'inactive') return 9;
 
-        return 7; // Fallback
+        return 99;
     };
 
     const sortedStudents = [...students].sort((a, b) => {
         const rankA = getSortPriority(a);
         const rankB = getSortPriority(b);
         if (rankA !== rankB) return rankA - rankB;
-
-        // Alphabetical Sort (First Name)
         return a.firstName.localeCompare(b.firstName);
-    });
+    }).filter(s =>
+        s.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.lastName.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
-    // --- Teacher Dashboard Logic ---
     const toggleAvailability = (teacher, day) => {
         const current = teacher.availability || {};
         const updated = { ...current, [day]: !current[day] };
@@ -143,12 +220,20 @@ export default function Students() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 flex-1 overflow-hidden h-full">
-
-                {/* LEFT: Student List (3/5) */}
                 <div className="lg:col-span-3 flex flex-col gap-4 overflow-hidden h-full">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center gap-4">
                         <h3 className="text-xl font-bold">Élèves</h3>
-                        <button onClick={handleAddClick} className="btn btn-primary">Ajouter un élève</button>
+                        <div className="flex-1 max-w-sm relative">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                            <input
+                                type="text"
+                                placeholder="Rechercher un élève..."
+                                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                        <button onClick={handleAddClick} className="btn btn-primary shrink-0">Ajouter un élève</button>
                     </div>
 
                     <div className="card h-full overflow-hidden flex flex-col">
@@ -199,7 +284,6 @@ export default function Students() {
                     </div>
                 </div>
 
-                {/* RIGHT: Teacher Panel (2/5) */}
                 <div className="lg:col-span-2 flex flex-col gap-4 overflow-hidden h-full">
                     <div className="flex justify-between items-center">
                         <h3 className="text-xl font-bold">Professeurs</h3>
@@ -221,7 +305,6 @@ export default function Students() {
                                 <tbody>
                                     {teachers.map(t => (
                                         <tr key={t.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50">
-                                            {/* Name */}
                                             <td className="p-4">
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-8 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }}></div>
@@ -229,7 +312,6 @@ export default function Students() {
                                                 </div>
                                             </td>
 
-                                            {/* Availability (Mon, Thu, Sat) */}
                                             <td className="p-4">
                                                 <div className="flex items-center justify-center gap-2">
                                                     {[
@@ -252,7 +334,6 @@ export default function Students() {
                                                 </div>
                                             </td>
 
-                                            {/* Absences */}
                                             <td className="p-4">
                                                 <input
                                                     type="text"
@@ -295,22 +376,21 @@ export default function Students() {
             <style>{`
         .badge { padding: 4px 8px; border-radius: 99px; font-size: 0.75rem; font-weight: 600; }
         
-        /* Membre - Vert */
         .badge-member { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
-        
-        /* Forfait 5 leçons terminé - Orange */
+        .badge-member-inactive { background: #ecfdf5; color: #047857; border: 1px solid #10b981; }
+
         .badge-pack5-finished { background: #fed7aa; color: #9a3412; border: 1px solid #fb923c; }
-        
-        /* Forfait 5 leçons en cours - Orange clair */
         .badge-pack5-active { background: #ffedd5; color: #c2410c; border: 1px solid #fdba74; }
         
-        /* Découverte terminée - Rose */
+        /* Orange Clair (Pale) for Expired/Inactif */
+        .badge-pack5-expired { background: #fff7ed; color: #ea580c; border: 1px solid #fdba74; }
+
         .badge-discovery-finished { background: #fce7f3; color: #9f1239; border: 1px solid #f9a8d4; }
-        
-        /* Découverte pas encore effectuée - Bleu clair */
         .badge-discovery-active { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
         
-        /* Prise de contact - Violet */
+        /* Bleu Clair (Pale) for Inactive Discovery */
+        .badge-discovery-inactive { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+        
         .badge-contact { background: #f3e8ff; color: #6b21a8; border: 1px solid #d8b4fe; }
         
         .accent-indigo-600 { accent-color: #4f46e5; }

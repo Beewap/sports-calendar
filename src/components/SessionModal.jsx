@@ -136,6 +136,13 @@ export default function SessionModal({ isOpen, onClose, onSave, date, timeSlot, 
                                     >
                                         Confirmé
                                     </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSingleStatus('cancelled')}
+                                        className={`status-btn ${singleStatus === 'cancelled' ? 'bg-red-50 text-red-600 ring-2 ring-red-500' : 'bg-gray-50 text-gray-500'}`}
+                                    >
+                                        Annulé
+                                    </button>
                                 </div>
                             </div>
 

@@ -3,7 +3,7 @@ import { X, Edit2, Trash2, Plus } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 
 export default function TeacherManagerModal({ isOpen, onClose }) {
-    const { teachers, addTeacher, updateTeacher, deleteTeacher } = useData();
+    const { teachers, addTeacher, updateTeacher, deleteTeacher, fixPackageDates } = useData();
     const [editingId, setEditingId] = useState(null);
     const [editForm, setEditForm] = useState({ name: '', color: '#000000' });
     const [isAdding, setIsAdding] = useState(false);
@@ -105,6 +105,23 @@ export default function TeacherManagerModal({ isOpen, onClose }) {
                         <Plus size={16} /> Ajouter un professeur
                     </button>
                 )}
+
+                <div className="mt-6 pt-4 border-t border-gray-200">
+                    <h4 className="text-sm font-bold text-gray-400 uppercase mb-2">Maintenance</h4>
+                    <button
+                        onClick={() => {
+                            if (confirm("Cela va recalculer la date de début de forfait pour tous les élèves non-membres (Session 2 = Début). Continuer ?")) {
+                                fixPackageDates();
+                            }
+                        }}
+                        className="w-full text-xs bg-orange-50 text-orange-700 p-2 rounded border border-orange-200 hover:bg-orange-100"
+                    >
+                        Réparer Dates Forfaits
+                    </button>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                        Recalcule la date de début de forfait pour exclure la 1ère séance (découverte) des packs.
+                    </p>
+                </div>
             </div>
         </div>
     );

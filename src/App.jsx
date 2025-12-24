@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Layout } from './components/Layout';
 import Students from './pages/Students';
 import Calendar from './pages/Calendar';
+import Statistics from './pages/Statistics';
 import Login from './pages/Login';
 
 function AuthenticatedApp() {
@@ -19,6 +20,7 @@ function AuthenticatedApp() {
       <Layout currentTab={currentTab} onTabChange={setCurrentTab}>
         {currentTab === 'calendar' && <Calendar />}
         {currentTab === 'students' && <Students />}
+        {currentTab === 'statistics' && <Statistics />}
       </Layout>
     </DataProvider>
   );

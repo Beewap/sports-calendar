@@ -164,18 +164,11 @@ export default function Calendar() {
                                                                     // Determine badge class based on status and individual teacher assignment
                                                                     let badgeClass = 'badge-student';
                                                                     if (s.status === 'confirmed') {
-                                                                        // If confirmed but no teacher assigned to THIS STUDENT, show purple
-                                                                        if (!s.teacherId) {
-                                                                            badgeClass += ' confirmed-no-coach';
-                                                                        } else {
-                                                                            badgeClass += ' confirmed';
-                                                                        }
+                                                                        badgeClass += s.teacherId ? ' confirmed' : ' confirmed-no-coach';
+                                                                    } else if (s.status === 'cancelled') {
+                                                                        badgeClass += ' cancelled line-through opacity-50 bg-gray-100 text-gray-500 border-gray-300';
                                                                     } else {
                                                                         badgeClass += ' proposed';
-                                                                    }
-
-                                                                    if (s.needsProposal) {
-                                                                        badgeClass += ' needs-proposal';
                                                                     }
 
                                                                     return (
@@ -223,7 +216,10 @@ export default function Calendar() {
                     />
                 )}
             </div>
+
+
+
             <PlanningSidebar />
-        </div>
+        </div >
     );
 }

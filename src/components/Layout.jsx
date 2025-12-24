@@ -31,6 +31,14 @@ export function Layout({ currentTab, onTabChange, children }) {
                         <Users size={20} />
                         Élèves
                     </button>
+
+                    <button
+                        onClick={() => onTabChange('statistics')}
+                        className={`btn justify-start w-full ${currentTab === 'statistics' ? 'btn-primary' : 'text-gray-500 hover:bg-gray-50 bg-white border-transparent'}`}
+                    >
+                        <Activity size={20} />
+                        Statistiques
+                    </button>
                 </nav>
 
                 <div className="p-4 border-t border-gray-100">

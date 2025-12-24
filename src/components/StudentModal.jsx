@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 
+import { useData } from '../contexts/DataContext';
+
 export default function StudentModal({ isOpen, onClose, onSave, studentToEdit, teachers }) {
+    const { getStudentSessionsDetail } = useData();
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
@@ -9,6 +12,8 @@ export default function StudentModal({ isOpen, onClose, onSave, studentToEdit, t
         language: 'fr',
         mainTeacherId: '',
         packageType: 'contact',
+        packageStartDate: '',
+        memberTransitionDate: '',
         manualClassesAdjustment: 0,
         needsProposal: false
     });
@@ -22,6 +27,8 @@ export default function StudentModal({ isOpen, onClose, onSave, studentToEdit, t
                 language: studentToEdit.language || 'fr',
                 mainTeacherId: studentToEdit.mainTeacherId || '',
                 packageType: studentToEdit.packageType || 'contact',
+                packageStartDate: studentToEdit.packageStartDate || '',
+                memberTransitionDate: studentToEdit.memberTransitionDate || '',
                 manualClassesAdjustment: studentToEdit.manualClassesAdjustment || 0,
                 needsProposal: studentToEdit.needsProposal || false
             });
@@ -33,6 +40,8 @@ export default function StudentModal({ isOpen, onClose, onSave, studentToEdit, t
                 language: 'fr',
                 mainTeacherId: '',
                 packageType: 'contact',
+                packageStartDate: '',
+                memberTransitionDate: '',
                 manualClassesAdjustment: 0,
                 needsProposal: false
             });
@@ -144,8 +153,42 @@ export default function StudentModal({ isOpen, onClose, onSave, studentToEdit, t
                             <option value="discovery">Découverte (10€)</option>
                             <option value="pack5">Forfait 5 leçons (50€)</option>
                             <option value="member">Membre (140€)</option>
+                            <option value="member_inactive">Membre non-actif</option>
                         </select>
                     </div>
+
+                    {/* Package Start Date (Manual Override) */}
+                    <div>
+                        <label className="block text-sm font-medium mb-1 text-indigo-700">
+                            Date début forfait (Pack 5)
+                            <span className="text-xs text-gray-500 ml-2">(Pour correction stats)</span>
+                        </label>
+                        <input
+                            type="date"
+                            className="w-full p-2 border border-indigo-200 rounded focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-indigo-50"
+                            value={formData.packageStartDate}
+                            onChange={(e) => setFormData({ ...formData, packageStartDate: e.target.value })}
+                        />
+                    </div>
+
+                    {/* Member Transition Date */}
+                    {(formData.packageType === 'member' || formData.packageType === 'member_inactive') && (
+                        <div>
+                            <label className="block text-sm font-medium mb-1 text-purple-700">
+                                Date de transition membre
+                                <span className="text-xs text-gray-500 ml-2">(Quand il est devenu membre)</span>
+                            </label>
+                            <input
+                                type="date"
+                                className="w-full p-2 border border-purple-200 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-purple-50"
+                                value={formData.memberTransitionDate}
+                                onChange={(e) => setFormData({ ...formData, memberTransitionDate: e.target.value })}
+                            />
+                            <p className="text-[10px] text-purple-600 mt-1">
+                                Avant cette date, l'élève compte comme "Forfait 5" dans les stats. Après, il compte comme "Membre".
+                            </p>
+                        </div>
+                    )}
 
                     {/* Manual Classes Adjustment */}
                     <div>
@@ -206,6 +249,42 @@ export default function StudentModal({ isOpen, onClose, onSave, studentToEdit, t
                         </div>
                     </div>
                 </form>
+
+                {/* DEBUG INFO PANEL */}
+                {studentToEdit && (
+                    <div className="mt-6 p-3 bg-gray-100 rounded border border-gray-200 text-xs text-gray-600">
+                        <details>
+                            <summary className="cursor-pointer font-bold mb-2">Détails du calcul (Debug)</summary>
+                            {(() => {
+                                const details = getStudentSessionsDetail(studentToEdit.id);
+                                return (
+                                    <div className="flex flex-col gap-1">
+                                        <div><strong>Total calculé :</strong> {details.total}</div>
+                                        <div><strong>Ajustement manuel :</strong> {details.adjustment}</div>
+                                        <div><strong>Date début forfait :</strong> {details.startDate || 'Aucune'}</div>
+                                        {details.excludedCount > 0 && (
+                                            <div className="text-red-600 font-bold mt-1 bg-red-50 p-1 rounded border border-red-200">
+                                                ⚠️ {details.excludedCount} session(s) ignorée(s) car avant la date de début du forfait ({details.startDate}).
+                                            </div>
+                                        )}
+                                        <div className="mt-2 text-gray-500 font-semibold border-b pb-1">Sessions comptabilisées :</div>
+                                        {details.countedSessions.length === 0 ? (
+                                            <div className="italic">Aucune session trouvée</div>
+                                        ) : (
+                                            <ul className="list-disc pl-4 max-h-32 overflow-auto">
+                                                {details.countedSessions.map((s, idx) => (
+                                                    <li key={idx}>
+                                                        {s.date.split('-').reverse().join('/')} à {s.slot} {teachers.find(t => t.id === s.teacherId)?.name ? `(${teachers.find(t => t.id === s.teacherId)?.name})` : ''}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+                        </details>
+                    </div>
+                )}
             </div>
         </div>
     );

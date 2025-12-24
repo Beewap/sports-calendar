@@ -27,7 +27,17 @@ export const DataProvider = ({ children }) => {
                 if (tRes.error) throw tRes.error;
                 if (sesRes.error) throw sesRes.error;
 
-                setStudents(sRes.data);
+                setStudents(sRes.data.map(s => ({
+                    ...s,
+                    firstName: s.first_name,
+                    lastName: s.last_name,
+                    mainTeacherId: s.main_teacher_id,
+                    packageType: s.package_type,
+                    packageStartDate: s.package_start_date,
+                    memberTransitionDate: s.member_transition_date,
+                    manualClassesAdjustment: s.manual_classes_adjustment,
+                    needsProposal: s.needs_proposal
+                })));
                 setTeachers(tRes.data);
 
                 // Format sessions to match expected structure
@@ -55,6 +65,18 @@ export const DataProvider = ({ children }) => {
 
     // --- Actions ---
 
+    const formatStudent = (s) => ({
+        ...s,
+        firstName: s.first_name,
+        lastName: s.last_name,
+        mainTeacherId: s.main_teacher_id,
+        packageType: s.package_type,
+        packageStartDate: s.package_start_date,
+        memberTransitionDate: s.member_transition_date,
+        manualClassesAdjustment: s.manual_classes_adjustment,
+        needsProposal: s.needs_proposal
+    });
+
     // STUDENTS
     const addStudent = async (studentData) => {
         // Map camelCase to snake_case
@@ -66,12 +88,15 @@ export const DataProvider = ({ children }) => {
             main_teacher_id: studentData.mainTeacherId || null,
             package_type: studentData.packageType,
             package_start_date: studentData.packageStartDate || null,
+            member_transition_date: studentData.memberTransitionDate || null,
             manual_classes_adjustment: studentData.manualClassesAdjustment || 0,
             needs_proposal: studentData.needsProposal || false
         };
         const { data, error } = await supabase.from('students').insert([dbData]).select();
         if (error) console.error("Error adding student", error);
-        else setStudents(prev => [...prev, data[0]]);
+        else if (data && data.length > 0) {
+            setStudents(prev => [...prev, formatStudent(data[0])]);
+        }
     };
 
     const updateStudent = async (id, updates) => {
@@ -84,11 +109,14 @@ export const DataProvider = ({ children }) => {
         if (updates.needsProposal !== undefined) dbUpdates.needs_proposal = updates.needsProposal;
         if (updates.packageType) dbUpdates.package_type = updates.packageType;
         if (updates.packageStartDate) dbUpdates.package_start_date = updates.packageStartDate;
+        if (updates.memberTransitionDate) dbUpdates.member_transition_date = updates.memberTransitionDate;
         if (updates.manualClassesAdjustment !== undefined) dbUpdates.manual_classes_adjustment = updates.manualClassesAdjustment;
 
         const { data, error } = await supabase.from('students').update(dbUpdates).eq('id', id).select();
         if (error) console.error("Error updating student", error);
-        else setStudents(prev => prev.map(s => s.id === id ? data[0] : s));
+        else if (data && data.length > 0) {
+            setStudents(prev => prev.map(s => s.id === id ? formatStudent(data[0]) : s));
+        }
     };
 
     const deleteStudent = async (id) => {
@@ -101,13 +129,17 @@ export const DataProvider = ({ children }) => {
     const addTeacher = async (teacherData) => {
         const { data, error } = await supabase.from('teachers').insert([teacherData]).select();
         if (error) console.error("Error adding teacher", error);
-        else setTeachers(prev => [...prev, data[0]]);
+        else if (data && data.length > 0) {
+            setTeachers(prev => [...prev, data[0]]);
+        }
     };
 
     const updateTeacher = async (id, updates) => {
         const { data, error } = await supabase.from('teachers').update(updates).eq('id', id).select();
         if (error) console.error("Error updating teacher", error);
-        else setTeachers(prev => prev.map(t => t.id === id ? data[0] : t));
+        else if (data && data.length > 0) {
+            setTeachers(prev => prev.map(t => t.id === id ? data[0] : t));
+        }
     };
 
     const deleteTeacher = async (id) => {
@@ -138,7 +170,8 @@ export const DataProvider = ({ children }) => {
             const studentInserts = sessionData.students.map(s => ({
                 session_id: newSession.id,
                 student_id: s.id,
-                status: s.status || 'proposed'
+                status: s.status || 'proposed',
+                teacher_id: s.teacherId || sessionData.teacherId // Fix: Propagate session teacher if individual not set
             }));
 
             const { error: stuError } = await supabase.from('session_students').insert(studentInserts);
@@ -172,6 +205,10 @@ export const DataProvider = ({ children }) => {
 
         // 2. Sync Students (Full Replace Strategy)
         if (updates.students) {
+            // Get fallback teacher ID from updates or existing session
+            const currentSession = sessions.find(s => s.id === id);
+            const fallbackTeacherId = updates.teacherId || currentSession?.teacherId;
+
             // Delete existing
             await supabase.from('session_students').delete().eq('session_id', id);
 
@@ -180,7 +217,8 @@ export const DataProvider = ({ children }) => {
                 const studentInserts = updates.students.map(s => ({
                     session_id: id,
                     student_id: s.id,
-                    status: s.status || 'proposed'
+                    status: s.status || 'proposed',
+                    teacher_id: s.teacherId || fallbackTeacherId // Robust fallback
                 }));
                 await supabase.from('session_students').insert(studentInserts);
             }
@@ -235,25 +273,87 @@ export const DataProvider = ({ children }) => {
         return calculated + manualAdjustment;
     };
 
+    const getStudentSessionsDetail = (studentId) => {
+        const student = students.find(s => s.id === studentId);
+        if (!student) return { total: 0, adjustment: 0, countedSessions: [], startDate: null };
+
+        const startDate = student?.package_start_date;
+        const manualAdjustment = student?.manual_classes_adjustment || 0;
+
+        const excludedSessionsCount = sessions.filter(s => {
+            if (startDate && s.dateStr < startDate) {
+                if (s.students) {
+                    return s.students.some(stu => stu.id === studentId && stu.status === 'confirmed');
+                }
+            }
+            return false;
+        }).length;
+
+        const countedSessions = sessions.filter(s => {
+            if (startDate && s.dateStr < startDate) return false;
+            if (s.students) {
+                return s.students.some(stu => stu.id === studentId && stu.status === 'confirmed');
+            }
+            return false;
+        }).map(s => ({ date: s.dateStr, slot: s.slot, teacherId: s.teacherId }));
+
+        return {
+            total: countedSessions.length + manualAdjustment,
+            adjustment: manualAdjustment,
+            countedSessions: countedSessions,
+            startDate: startDate,
+            excludedCount: excludedSessionsCount
+        };
+    };
+
+    const fixPackageDates = async () => {
+        const updates = [];
+        const nonMembers = students.filter(s => s.packageType !== 'member');
+
+        for (const student of nonMembers) {
+            // Get all confirmed sessions for this student
+            const studentSessions = sessions
+                .filter(s => s.students && s.students.some(stu => stu.id === student.id && stu.status === 'confirmed'))
+                .sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+
+            let newStartDate = null;
+
+            if (studentSessions.length >= 2) {
+                // Rule: 1st session is Discovery, 2nd session starts the Pack 5
+                newStartDate = studentSessions[1].dateStr;
+            } else {
+                // Less than 2 sessions: No pack started yet (or just discovery)
+                newStartDate = null;
+            }
+
+            // Only update if different
+            if (student.packageStartDate !== newStartDate) {
+                updates.push({ id: student.id, packageStartDate: newStartDate });
+            }
+        }
+
+        if (updates.length > 0) {
+            console.log(`Fixing package dates for ${updates.length} students...`);
+            // Process updates sequentially to avoid potential race conditions or overwhelmed DB
+            for (const update of updates) {
+                await updateStudent(update.id, { packageStartDate: update.packageStartDate });
+            }
+            alert(`Dates de forfait corrigées pour ${updates.length} élèves !`);
+        } else {
+            alert("Aucune correction nécessaire.");
+        }
+    };
+
     return (
         <DataContext.Provider value={{
-            students: students.map(s => ({
-                ...s,
-                firstName: s.first_name,
-                lastName: s.last_name,
-                mainTeacherId: s.main_teacher_id,
-                needsProposal: s.needs_proposal,
-                packageType: s.package_type,
-                packageStartDate: s.package_start_date,
-                manualClassesAdjustment: s.manual_classes_adjustment
-            })),
+            students,
             teachers,
             sessions,
             loading,
             addStudent, updateStudent, deleteStudent,
             addTeacher, updateTeacher, deleteTeacher,
             addSession, updateSession, deleteSession, assignStudentToSession,
-            getStudentClassesCount
+            getStudentClassesCount, getStudentSessionsDetail, fixPackageDates
         }}>
             {children}
         </DataContext.Provider>
